@@ -122,29 +122,74 @@ Create a function that validates email addresses.
 Include proper error handling and comprehensive tests.
 """
 
-# Run the agent team
-team = AIAgentTeam()
+# Run the agent team with custom project directory
+team = AIAgentTeam(project_dir="./email_validator_project")
 result = team.run(requirement)
 
 # Access outputs
 print(result['code'])     # Implementation
 print(result['tests'])    # Test suite
 print(result['review'])   # Code review
+
+# Results are automatically saved to:
+# ./email_validator_project/
+#   - email_validator_project_result.json
+#   - email_validator_project_code.py
+#   - email_validator_project_tests.py
+#   - email_validator_project_plan.md
+#   - email_validator_project_review.md
+```
+
+To disable automatic saving:
+
+```python
+team = AIAgentTeam(project_dir="./my_project")
+result = team.run(requirement, save=False)  # Don't save automatically
 ```
 
 ## 📁 Project Structure
 
 ```
 .
-├── ai_agent_team.py      # Core agent team implementation
-├── examples.py           # Example usage and interactive mode
-├── requirements.txt      # Python dependencies
-├── .env.example         # Environment variables template
-├── README.md            # This file
-└── future_integrations/ # Post-POC integration modules
-    ├── github_integration.py
-    ├── jira_integration.py
-    └── azure_devops_integration.py
+├── src/
+│   ├── ai_agent_team.py      # Core agent team implementation
+│   ├── examples.py           # Example usage and interactive mode
+│   ├── requirements.txt      # Python dependencies
+│   ├── .env.example         # Environment variables template
+│   └── README.md            # This file
+├── tools/                   # Integration modules (post-POC)
+│   ├── __init__.py
+│   ├── github_integration.py
+│   ├── jira_integration.py
+│   └── azure_devops_integration.py
+└── tests/                   # Unit tests
+    ├── __init__.py
+    ├── test_structure.py
+    ├── test_corrected_config.py
+    └── test_qwen_migration.py
+```
+
+### Output Directory
+
+When you run the agent team, generated code is saved to a project directory:
+
+```
+./output/
+├── fibonacci_example/
+│   ├── fibonacci_example_result.json
+│   ├── fibonacci_example_code.py
+│   ├── fibonacci_example_tests.py
+│   ├── fibonacci_example_plan.md
+│   └── fibonacci_example_review.md
+└── task_manager_example/
+    └── ...
+```
+
+You can customize the output directory using the `project_dir` parameter:
+
+```python
+team = AIAgentTeam(project_dir="./my_project")
+result = team.run(requirement)
 ```
 
 ## 🔧 Configuration

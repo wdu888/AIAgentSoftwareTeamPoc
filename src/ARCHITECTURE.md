@@ -7,7 +7,7 @@
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │                     User Interface / API                         │
-│                   (examples.py / your code)                      │
+│                   (examples.py / create_project.py)              │
 └───────────────────────────────┬─────────────────────────────────┘
                                 │
                                 ▼
@@ -22,6 +22,14 @@
 │  │  - Controls iteration count                               │  │
 │  │  - Stores artifacts (plan, code, tests, review)          │  │
 │  └──────────────────────────────────────────────────────────┘  │
+│                                                                   │
+│  ┌──────────────────────────────────────────────────────────┐  │
+│  │                  Tool Registry                            │  │
+│  │  - CodeCleanerTool (removes markdown, adds usings)       │  │
+│  │  - CodeSplitterTool (splits into files)                  │  │
+│  │  - CSharpProjectGeneratorTool (.sln, .csproj, .cs)       │  │
+│  │  - PythonProjectGeneratorTool (package, tests, setup)    │  │
+│  └──────────────────────────────────────────────────────────┘  │
 └───────────────────────────────┬─────────────────────────────────┘
                                 │
                 ┌───────────────┼───────────────┐
@@ -32,8 +40,9 @@
 │                   │  │              │  │              │
 │ - Requirements    │  │ - Code gen   │  │ - Test gen   │
 │   analysis        │  │ - Best       │  │ - Edge cases │
-│ - Architecture    │  │   practices  │  │ - Pytest     │
-│ - Approach        │  │ - Docs       │  │   framework  │
+│ - Architecture    │  │   practices  │  │ - NUnit/     │
+│ - Approach        │  │ - Docs       │  │   pytest     │
+│ - [DISPLAYS PLAN] │  │              │  │              │
 └─────────┬─────────┘  └──────┬───────┘  └──────┬───────┘
           │                   │                  │
           └───────────────────┼──────────────────┘
@@ -62,6 +71,15 @@
         [REVISION]            [COMPLETE]
          (back to              (output
           coding)               results)
+                              │
+                              ▼
+                    ┌─────────────────────┐
+                    │  Project Generator  │
+                    │  - Creates .sln     │
+                    │  - Creates .csproj  │
+                    │  - Saves .cs files  │
+                    │  - Adds .gitignore  │
+                    └─────────────────────┘
 ```
 
 ## Component Details
@@ -88,7 +106,41 @@ class AgentState(TypedDict):
 - Tracks iteration progress
 - Stores all artifacts
 
-### 2. Agent Roles & Responsibilities
+### 2. Tools Framework (NEW)
+
+The system uses a tool-based architecture where specialized tools are available for agents to accomplish specific tasks.
+
+**Tool Base Classes:**
+```python
+from tools.base import Tool, ToolContext, ToolResult
+
+class Tool(ABC):
+    """Base class for all agent tools"""
+    def execute(self, context: ToolContext, **kwargs) -> ToolResult:
+        pass
+```
+
+**Available Tools:**
+
+| Tool | Purpose |
+|------|---------|
+| `CodeCleanerTool` | Removes markdown formatting, adds missing `using` statements |
+| `CodeSplitterTool` | Splits AI-generated code into separate files |
+| `CSharpProjectGeneratorTool` | Creates Visual Studio solution structure |
+| `PythonProjectGeneratorTool` | Creates Python package structure |
+
+**Tool Registry:**
+```python
+from tools import get_registry, register_default_tools
+
+registry = register_default_tools()
+context = ToolContext(project_dir="./MyProject")
+
+# Execute a tool
+result = registry.execute("code_cleaner", context, code=generated_code)
+```
+
+### 3. Agent Roles & Responsibilities
 
 #### Planning Agent 🎯
 
@@ -106,6 +158,7 @@ class AgentState(TypedDict):
 - Technical plan (structured text)
 - Architecture overview
 - Implementation strategy
+- **[DISPLAYED TO USER for review before coding]**
 
 **LLM Config:**
 - Model: Qwen-Turbo (cost-effective for POC, Singapore region)
@@ -309,11 +362,24 @@ workflow.add_conditional_edges(
    ↓
 4. LangGraph orchestrates agent calls
    ↓
-5. Each agent updates state
+5. Planning Agent → Creates plan [DISPLAYED TO USER]
    ↓
-6. Decision logic determines next step
+6. Coding Agent → Generates code
    ↓
-7. Return final_output
+7. Testing Agent → Creates tests
+   ↓
+8. Reviewing Agent → Reviews and approves/revises
+   ↓
+9. Decision logic determines next step
+   ↓
+10. Return final_output
+   ↓
+11. Tools process output:
+    - CodeCleanerTool (cleans markdown, adds usings)
+    - CodeSplitterTool (splits into files)
+    - ProjectGeneratorTool (creates .sln, .csproj, etc.)
+   ↓
+12. Save to project directory
 ```
 
 ### State Updates

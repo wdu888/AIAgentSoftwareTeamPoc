@@ -8,22 +8,23 @@ A complete proof-of-concept for an AI-powered autonomous software development te
 
 ### Core Implementation Files
 
-1. **ai_agent_team.py** (11 KB)
+1. **ai_agent_team.py**
    - Main implementation of the multi-agent system
    - LangGraph workflow orchestration
    - Four specialized agents (Planning, Coding, Testing, Reviewing)
    - Iteration and revision logic
    - Complete state management
+   - `save_results()` method for saving generated code to project directory
 
-2. **examples.py** (5.3 KB)
+2. **examples.py**
    - Usage examples and demonstrations
    - Interactive mode for custom requirements
    - Pre-built example scenarios
-   - Result saving and formatting
+   - Support for custom project directory output
 
-3. **requirements.txt** (652 bytes)
+3. **requirements.txt**
    - All Python dependencies
-   - LangGraph, LangChain, Anthropic SDK
+   - LangGraph, LangChain, OpenAI SDK (DashScope compatible)
    - Testing frameworks
    - Future integration libraries (commented)
 
@@ -35,7 +36,7 @@ A complete proof-of-concept for an AI-powered autonomous software development te
 
 ### Documentation
 
-5. **README.md** (9.3 KB)
+5. **README.md**
    - Comprehensive project documentation
    - Architecture overview
    - Installation and usage guide
@@ -43,14 +44,14 @@ A complete proof-of-concept for an AI-powered autonomous software development te
    - Troubleshooting
    - Future roadmap
 
-6. **QUICKSTART.md** (6.6 KB)
+6. **QUICKSTART.md**
    - 5-minute setup guide
    - Step-by-step instructions
    - Quick usage examples
    - Common issues and solutions
    - Performance tips
 
-7. **ARCHITECTURE.md** (14 KB)
+7. **ARCHITECTURE.md**
    - Detailed system architecture
    - Component descriptions
    - Data flow diagrams
@@ -58,25 +59,37 @@ A complete proof-of-concept for an AI-powered autonomous software development te
    - Security considerations
    - Scalability plans
 
-### Integration Modules (Post-POC)
+### Integration Modules (tools/ directory)
 
-8. **github_integration.py** (9.3 KB)
+8. **github_integration.py**
    - GitHub repository integration
    - Branch and PR creation
    - Issue management
    - Automated deployment from agent output
 
-9. **jira_integration.py** (10 KB)
+9. **jira_integration.py**
    - Jira project management integration
    - Story and task creation
    - Status tracking
    - Comment and update management
 
-10. **azure_devops_integration.py** (13 KB)
+10. **azure_devops_integration.py**
     - Azure DevOps integration
     - Work item management
     - Pull request creation
     - Pipeline triggering
+
+### Test Files (tests/ directory)
+
+11. **test_structure.py**
+    - Basic structure verification
+    - Import testing
+
+12. **test_corrected_config.py**
+    - DashScope API configuration testing
+
+13. **test_qwen_migration.py**
+    - Qwen migration verification
 
 ## 🏗️ System Architecture
 

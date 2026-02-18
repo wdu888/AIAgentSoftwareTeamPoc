@@ -7,6 +7,12 @@ Agents:
 - Coding Agent: Implements the code
 - Testing Agent: Writes and runs tests
 - Reviewing Agent: Reviews code quality and security
+
+Tools:
+- CodeCleanerTool: Cleans AI-generated code (removes markdown)
+- CodeSplitterTool: Splits code into separate files
+- CSharpProjectGeneratorTool: Creates Visual Studio solutions
+- PythonProjectGeneratorTool: Creates Python project structures
 """
 
 import os
@@ -15,6 +21,18 @@ from langgraph.graph import StateGraph, END
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import BaseMessage, HumanMessage, AIMessage
 import operator
+
+# Import tools
+from tools import (
+    ToolRegistry, 
+    get_registry, 
+    register_default_tools,
+    ToolContext,
+    CodeCleanerTool,
+    CodeSplitterTool,
+    CSharpProjectGeneratorTool,
+    PythonProjectGeneratorTool
+)
 
 # State definition for the agent workflow
 class AgentState(TypedDict):
@@ -32,10 +50,19 @@ class AgentState(TypedDict):
 
 class AIAgentTeam:
     """Multi-agent software development team"""
-    
-    def __init__(self, api_key: str = None):
-        """Initialize the agent team with Qwen API"""
+
+    def __init__(self, api_key: str = None, project_dir: str = None):
+        """Initialize the agent team with Qwen API
+
+        Args:
+            api_key: DashScope API key (defaults to DASHSCOPE_API_KEY env var)
+            project_dir: Directory to save generated code (defaults to ./output)
+        """
         self.api_key = api_key or os.getenv("DASHSCOPE_API_KEY")
+        self.project_dir = project_dir or os.path.join(os.path.dirname(__file__), "output")
+        
+        # Initialize tool registry
+        self.tool_registry = register_default_tools()
 
         # Initialize Qwen for each agent role via DashScope OpenAI-compatible API (using cost-effective model for POC)
         base_url = "https://dashscope-intl.aliyuncs.com/compatible-mode/v1"  # Singapore region
@@ -121,7 +148,13 @@ Format your response as a structured plan."""
         response = self.planner_llm.invoke([HumanMessage(content=prompt)])
         plan = response.content
 
-        print(f"[PLAN CREATED ({len(plan)} chars)]")
+        print(f"\n[PLAN CREATED ({len(plan)} chars)]")
+        print("\n" + "="*80)
+        print("[TECHNICAL PLAN]")
+        print("="*80)
+        print(plan)
+        print("="*80)
+        print()
 
         return {
             **state,
@@ -277,12 +310,20 @@ Format: Start with "APPROVED" or "NEEDS_REVISION" on first line, then detailed f
             return "revise"
         return "complete"
     
-    def run(self, requirement: str) -> dict:
-        """Execute the agent workflow"""
+    def run(self, requirement: str, save: bool = True) -> dict:
+        """Execute the agent workflow
+
+        Args:
+            requirement: The software requirement to implement
+            save: Whether to save the results to project_dir (default: True)
+
+        Returns:
+            dict: Final output containing plan, code, tests, and review
+        """
         print("="*80)
         print("[AI AGENT SOFTWARE TEAM - STARTING WORKFLOW]")
         print("="*80)
-        
+
         initial_state = {
             "messages": [],
             "requirement": requirement,
@@ -294,11 +335,150 @@ Format: Start with "APPROVED" or "NEEDS_REVISION" on first line, then detailed f
             "needs_revision": False,
             "final_output": {}
         }
-        
+
         # Run the workflow
         final_state = self.workflow.invoke(initial_state)
+        result = final_state["final_output"]
+
+        # Save results if requested
+        if save:
+            # Auto-detect if we should create a proper project structure
+            code = result.get("code", "")
+            is_csharp = "namespace " in code or "using System;" in code or "public class" in code
+            create_project_flag = is_csharp  # Automatically create project for C#
+            self.save_results(result, create_project=create_project_flag)
+
+        return result
+
+    def save_results(self, result: dict, name: str = None, create_project: bool = None):
+        """Save the workflow results to the project directory using tools
+
+        Args:
+            result: The workflow result dictionary
+            name: Optional name for the output files (uses folder name if not provided)
+            create_project: Whether to create a proper project structure (auto-detected if None)
+        """
+        # Create tool context
+        context = ToolContext(
+            project_dir=self.project_dir,
+            api_key=self.api_key,
+            metadata={'requirement': result.get('requirement', '')}
+        )
         
-        return final_state["final_output"]
+        # Auto-detect if we should create a proper project structure
+        if create_project is None:
+            code = result.get("code", "")
+            if "namespace " in code or "using System;" in code or "public class" in code:
+                create_project = True
+            elif "def " in code and "import " in code:
+                create_project = True
+            else:
+                create_project = False
+        
+        # Use folder name as project name if not provided
+        if name is None:
+            name = self._get_folder_name()
+        
+        # Use appropriate generator tool
+        code = result.get("code", "")
+        test_code = result.get("tests", "")
+        
+        # Detect language and use appropriate tool
+        if "namespace " in code or "using System;" in code or "public class" in code:
+            # C# project
+            gen_tool = self.tool_registry.get("csharp_project_generator")
+            if gen_tool:
+                gen_result = gen_tool.execute(
+                    context,
+                    code=code,
+                    test_code=test_code,
+                    project_name=name
+                )
+                if gen_result.success:
+                    print(f"\n{gen_result.message}")
+                    print(f"Files created: {len(gen_result.files_created)}")
+                else:
+                    print(f"Error: {gen_result.message}")
+                    # Fallback to simple save
+                    self._save_simple(result, name)
+            else:
+                self._save_simple(result, name)
+                
+        elif "def " in code and "import " in code:
+            # Python project
+            gen_tool = self.tool_registry.get("python_project_generator")
+            if gen_tool:
+                gen_result = gen_tool.execute(
+                    context,
+                    code=code,
+                    test_code=test_code,
+                    project_name=name
+                )
+                if gen_result.success:
+                    print(f"\n{gen_result.message}")
+                    print(f"Files created: {len(gen_result.files_created)}")
+                else:
+                    print(f"Error: {gen_result.message}")
+                    self._save_simple(result, name)
+            else:
+                self._save_simple(result, name)
+        else:
+            # Unknown language, save as simple files
+            self._save_simple(result, name)
+
+    def _get_folder_name(self) -> str:
+        """
+        Get project name from folder path.
+        
+        Returns:
+            Folder name sanitized for use as project name
+        """
+        import re
+        # Get the last folder name
+        folder_name = os.path.basename(os.path.normpath(self.project_dir))
+        
+        # If empty (root path), use parent folder
+        if not folder_name:
+            folder_name = os.path.basename(os.path.dirname(self.project_dir))
+        
+        # Sanitize: remove invalid chars, keep only alphanumeric
+        folder_name = re.sub(r'[^a-zA-Z0-9_.]', '', folder_name)
+        
+        # Ensure it starts with a letter
+        if folder_name and not folder_name[0].isalpha():
+            folder_name = 'App' + folder_name
+        
+        # Default fallback
+        if not folder_name:
+            folder_name = 'GeneratedApp'
+        
+        # Limit length
+        return folder_name[:50]
+
+    def _save_simple(self, result: dict, name: str):
+        """Fallback: save as simple files without project structure"""
+        import json
+        os.makedirs(self.project_dir, exist_ok=True)
+        
+        # Save full result as JSON
+        json_filepath = os.path.join(self.project_dir, f"{name}_result.json")
+        with open(json_filepath, "w", encoding='utf-8') as f:
+            json.dump(result, f, indent=2, ensure_ascii=False)
+
+        # Save code
+        code_filepath = os.path.join(self.project_dir, f"{name}_code.txt")
+        with open(code_filepath, "w", encoding='utf-8') as f:
+            f.write(result["code"])
+
+        # Save tests
+        test_filepath = os.path.join(self.project_dir, f"{name}_tests.txt")
+        with open(test_filepath, "w", encoding='utf-8') as f:
+            f.write(result["tests"])
+
+        print(f"\n[RESULTS SAVED] to project directory: {self.project_dir}")
+        print(f"  - {json_filepath}")
+        print(f"  - {code_filepath}")
+        print(f"  - {test_filepath}")
 
 
 def main():
