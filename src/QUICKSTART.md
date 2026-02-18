@@ -42,7 +42,7 @@ This will run a simple Fibonacci function example and show you the full workflow
 # Run the default example
 python examples.py
 
-# The output files will be in the outputs/ directory
+# The output files will be in the ./output/ directory
 ```
 
 ### Option 2: Interactive Mode
@@ -77,25 +77,49 @@ Create a calculator class that supports:
 Include comprehensive tests.
 """
 
-# Run the agent team
-team = AIAgentTeam()
+# Run the agent team with custom project directory
+team = AIAgentTeam(project_dir="./calculator_project")
 result = team.run(requirement)
 
 # Access the outputs
 print("Code:", result['code'])
 print("Tests:", result['tests'])
 print("Review:", result['review'])
+
+# Results are automatically saved to ./calculator_project/
+```
+
+To disable automatic saving:
+
+```python
+team = AIAgentTeam(project_dir="./my_project")
+result = team.run(requirement, save=False)
 ```
 
 ## 📂 Understanding the Output
 
-After running, you'll find in the `outputs/` directory:
+After running, you'll find generated files in the project directory:
 
 ```
-outputs/
-├── [name]_result.json   # Complete workflow result
-├── [name]_code.py       # Generated code
-└── [name]_tests.py      # Generated tests
+./output/
+├── fibonacci_example/
+│   ├── fibonacci_example_result.json   # Complete workflow result
+│   ├── fibonacci_example_code.py       # Generated code
+│   ├── fibonacci_example_tests.py      # Generated tests
+│   ├── fibonacci_example_plan.md       # Technical plan
+│   └── fibonacci_example_review.md     # Code review
+```
+
+### Customizing Output Directory
+
+```python
+from ai_agent_team import AIAgentTeam
+
+# Specify a custom project directory
+team = AIAgentTeam(project_dir="./my_custom_project")
+result = team.run(requirement)
+
+# Files will be saved to ./my_custom_project/
 ```
 
 ### Output Structure
@@ -255,15 +279,13 @@ pip install -r requirements.txt
 - Use a simpler requirement for testing
 
 ### Output Files Not Created
-**Problem:** Script finished but no files in outputs/
+**Problem:** Script finished but no files in output directory
 **Solution:**
 ```bash
-# Check if outputs directory exists
-ls -la outputs/
+# Check if output directory exists
+ls -la ./output/
 
-# If not, create it
-mkdir -p outputs
-
+# If not, the directory is created automatically when you run the agent
 # Run again
 python examples.py
 ```

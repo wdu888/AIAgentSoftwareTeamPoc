@@ -3,8 +3,6 @@ Example: Running the AI Agent Software Team
 """
 
 from ai_agent_team import AIAgentTeam
-import json
-import os
 from dotenv import load_dotenv
 
 # Load environment variables
@@ -16,7 +14,7 @@ def example_1_simple_function():
     print("\n" + "="*80)
     print("EXAMPLE 1: Simple Fibonacci Function")
     print("="*80)
-    
+
     requirement = """
     Create a Python function that calculates the Fibonacci sequence up to n terms.
     Requirements:
@@ -26,11 +24,11 @@ def example_1_simple_function():
     - Be optimized for performance
     - Include proper error handling and documentation
     """
-    
-    team = AIAgentTeam()
+
+    # Specify project directory for output
+    team = AIAgentTeam(project_dir="./output/fibonacci_example")
     result = team.run(requirement)
-    
-    save_result("fibonacci_function", result)
+
     print_summary(result)
 
 
@@ -39,7 +37,7 @@ def example_2_class_design():
     print("\n" + "="*80)
     print("EXAMPLE 2: Task Manager Class")
     print("="*80)
-    
+
     requirement = """
     Create a TaskManager class in Python for managing a to-do list.
     Requirements:
@@ -51,11 +49,10 @@ def example_2_class_design():
     - Include input validation
     - Thread-safe operations
     """
-    
-    team = AIAgentTeam()
+
+    team = AIAgentTeam(project_dir="./output/task_manager_example")
     result = team.run(requirement)
-    
-    save_result("task_manager_class", result)
+
     print_summary(result)
 
 
@@ -64,7 +61,7 @@ def example_3_api_integration():
     print("\n" + "="*80)
     print("EXAMPLE 3: Weather API Client")
     print("="*80)
-    
+
     requirement = """
     Create a Weather API client class that fetches weather data.
     Requirements:
@@ -77,37 +74,11 @@ def example_3_api_integration():
     - Include retry logic with exponential backoff
     - Async/await support
     """
-    
-    team = AIAgentTeam()
+
+    team = AIAgentTeam(project_dir="./output/weather_api_example")
     result = team.run(requirement)
-    
-    save_result("weather_api_client", result)
+
     print_summary(result)
-
-
-def save_result(name: str, result: dict):
-    """Save result to a JSON file"""
-    output_dir = "./outputs"
-    os.makedirs(output_dir, exist_ok=True)
-
-    filepath = f"{output_dir}/{name}_result.json"
-    with open(filepath, "w", encoding='utf-8') as f:
-        json.dump(result, f, indent=2, ensure_ascii=False)
-
-    print(f"\n[RESULT SAVED] to: {filepath}")
-
-    # Also save code and tests as separate files for easy viewing
-    code_file = f"{output_dir}/{name}_code.py"
-    test_file = f"{output_dir}/{name}_tests.py"
-
-    with open(code_file, "w", encoding='utf-8') as f:
-        f.write(result["code"])
-
-    with open(test_file, "w", encoding='utf-8') as f:
-        f.write(result["tests"])
-
-    print(f"[CODE SAVED] to: {code_file}")
-    print(f"[TESTS SAVED] to: {test_file}")
 
 
 def print_summary(result: dict):
@@ -121,7 +92,7 @@ def print_summary(result: dict):
     print(f"Code length: {len(result['code'])} characters")
     print(f"Tests length: {len(result['tests'])} characters")
     print(f"Review length: {len(result['review'])} characters")
-    
+
     # Show review status
     review_first_line = result['review'].split('\n')[0]
     print(f"\nReview Status: {review_first_line}")
@@ -134,7 +105,7 @@ def interactive_mode():
     print("="*80)
     print("\nEnter your software requirement (or 'quit' to exit):")
     print("(Press Enter twice when done)")
-    
+
     while True:
         print("\n" + "-"*80)
         lines = []
@@ -147,21 +118,22 @@ def interactive_mode():
                     break
                 else:
                     continue
-        
+
         requirement = "\n".join(lines)
-        
+
         if requirement.lower().strip() == 'quit':
             break
-        
-        team = AIAgentTeam()
-        result = team.run(requirement)
-        
-        # Generate a simple filename from requirement
+
+        # Generate a simple project directory name from requirement
         import re
-        filename = re.sub(r'[^a-z0-9]+', '_', requirement[:50].lower()).strip('_')
-        save_result(filename, result)
+        dirname = re.sub(r'[^a-z0-9]+', '_', requirement[:50].lower()).strip('_')
+        project_dir = f"./output/{dirname}"
+
+        team = AIAgentTeam(project_dir=project_dir)
+        result = team.run(requirement)
+
         print_summary(result)
-        
+
         print("\nEnter another requirement (or 'quit' to exit):")
 
 
