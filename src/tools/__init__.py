@@ -28,45 +28,53 @@ from .registry import ToolRegistry, get_registry
 from .utilities.code_cleaner import CodeCleanerTool, CodeSplitterTool
 from .generators.csharp_generator import CSharpProjectGeneratorTool
 from .generators.python_generator import PythonProjectGeneratorTool
+from .build import BuildTool, BuildAndFixAgent
 
 __all__ = [
     # Base classes
     'Tool',
-    'ToolResult', 
+    'ToolResult',
     'ToolContext',
     'FileTool',
     'ToolRegistry',
     'get_registry',
-    
+
     # Utility tools
     'CodeCleanerTool',
     'CodeSplitterTool',
-    
+
     # Generator tools
     'CSharpProjectGeneratorTool',
     'PythonProjectGeneratorTool',
+
+    # Build tools
+    'BuildTool',
+    'BuildAndFixAgent',
 ]
 
 
 def register_default_tools(registry: ToolRegistry = None) -> ToolRegistry:
     """
     Register all default tools in the registry.
-    
+
     Args:
         registry: Tool registry to use (creates new if not provided)
-        
+
     Returns:
         ToolRegistry with tools registered
     """
     if registry is None:
         registry = get_registry()
-    
+
     # Register utility tools
     registry.register(CodeCleanerTool())
     registry.register(CodeSplitterTool())
-    
+
     # Register generator tools
     registry.register(CSharpProjectGeneratorTool())
     registry.register(PythonProjectGeneratorTool())
-    
+
+    # Register build tool
+    registry.register(BuildTool())
+
     return registry

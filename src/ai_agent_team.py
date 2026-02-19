@@ -24,14 +24,16 @@ import operator
 
 # Import tools
 from tools import (
-    ToolRegistry, 
-    get_registry, 
+    ToolRegistry,
+    get_registry,
     register_default_tools,
     ToolContext,
     CodeCleanerTool,
     CodeSplitterTool,
     CSharpProjectGeneratorTool,
-    PythonProjectGeneratorTool
+    PythonProjectGeneratorTool,
+    BuildTool,
+    BuildAndFixAgent
 )
 
 # State definition for the agent workflow
@@ -46,6 +48,9 @@ class AgentState(TypedDict):
     iteration_count: int
     needs_revision: bool
     final_output: dict
+    build_output: str
+    build_errors: str
+    build_success: bool
 
 
 class AIAgentTeam:
@@ -101,21 +106,23 @@ class AIAgentTeam:
     def _build_workflow(self) -> StateGraph:
         """Build the LangGraph workflow"""
         workflow = StateGraph(AgentState)
-        
+
         # Add agent nodes
         workflow.add_node("planning_agent", self.planning_agent)
         workflow.add_node("coding_agent", self.coding_agent)
+        workflow.add_node("build_agent", self.build_agent)
         workflow.add_node("testing_agent", self.testing_agent)
         workflow.add_node("reviewing_agent", self.reviewing_agent)
         workflow.add_node("revision_decision", self.revision_decision)
-        
+
         # Define the workflow edges
         workflow.set_entry_point("planning_agent")
         workflow.add_edge("planning_agent", "coding_agent")
-        workflow.add_edge("coding_agent", "testing_agent")
+        workflow.add_edge("coding_agent", "build_agent")
+        workflow.add_edge("build_agent", "testing_agent")
         workflow.add_edge("testing_agent", "reviewing_agent")
         workflow.add_edge("reviewing_agent", "revision_decision")
-        
+
         # Conditional edge: revision or complete
         workflow.add_conditional_edges(
             "revision_decision",
@@ -125,7 +132,7 @@ class AIAgentTeam:
                 "complete": END
             }
         )
-        
+
         return workflow.compile()
     
     def planning_agent(self, state: AgentState) -> AgentState:
@@ -197,7 +204,133 @@ Provide the complete implementation."""
             "code": code,
             "messages": state["messages"] + [AIMessage(content=f"Code implementation complete")]
         }
-    
+
+    def build_agent(self, state: AgentState) -> AgentState:
+        """Build Agent: Compiles the code and fixes build errors iteratively"""
+        print("\n[BUILD AGENT: Building and fixing code...]")
+
+        # Detect language from code
+        code = state.get("code", "")
+        is_csharp = "namespace " in code or "using System;" in code or "public class" in code
+        language = "csharp" if is_csharp else "python"
+
+        print(f"[BUILD AGENT] Detected language: {language.upper()}")
+
+        # Create a temporary project directory for building
+        import tempfile
+        import shutil
+
+        # For C#, we need to generate the project structure first
+        if is_csharp:
+            # Create temp directory for the project
+            temp_dir = tempfile.mkdtemp(prefix="build_")
+            try:
+                # Generate C# project structure
+                context = ToolContext(
+                    project_dir=temp_dir,
+                    api_key=self.api_key,
+                    metadata={'requirement': state.get('requirement', '')}
+                )
+
+                gen_tool = self.tool_registry.get("csharp_project_generator")
+                if gen_tool:
+                    print("[BUILD AGENT] Generating C# project structure...")
+                    gen_result = gen_tool.execute(
+                        context,
+                        code=code,
+                        test_code=state.get('tests', ''),
+                        project_name="TempBuild"
+                    )
+
+                    if gen_result.success:
+                        # Now build the project
+                        print("[BUILD AGENT] Building project...")
+                        build_tool = BuildTool()
+                        build_result = build_tool.execute(
+                            context,
+                            project_dir=temp_dir,
+                            language="csharp",
+                            max_iterations=3
+                        )
+
+                        build_output = build_result.data.get('build_output', '') if build_result.data else ''
+                        build_errors = build_result.data.get('errors_for_llm', '') if build_result.data else ''
+                        build_success = build_result.success
+
+                        print(f"[BUILD AGENT] Build {'SUCCESS' if build_success else 'FAILED'}")
+
+                        # If build failed, use BuildAndFixAgent to iterate
+                        if not build_success and build_errors:
+                            print("[BUILD AGENT] Attempting iterative fixes...")
+                            fix_agent = BuildAndFixAgent(self.coder_llm, max_iterations=3)
+
+                            # Get the generated code files
+                            main_code = code
+                            for filepath, content in context.working_files.items():
+                                if filepath.endswith('.cs') and 'Test' not in filepath:
+                                    main_code = content
+                                    break
+
+                            success, fixed_code, final_build_result = fix_agent.build_and_fix(
+                                context,
+                                main_code,
+                                language="csharp",
+                                project_dir=temp_dir
+                            )
+
+                            if success:
+                                print("[BUILD AGENT] Iterative fix SUCCESS!")
+                                code = fixed_code
+                                build_success = True
+                                build_errors = ""
+                            else:
+                                print("[BUILD AGENT] Iterative fixes exhausted")
+                                build_errors = final_build_result.data.get('errors_for_llm', '')
+                    else:
+                        build_output = f"Project generation failed: {gen_result.message}"
+                        build_errors = "Could not generate project structure"
+                        build_success = False
+                else:
+                    build_output = "Build tool not found"
+                    build_errors = ""
+                    build_success = False
+
+            finally:
+                # Clean up temp directory
+                try:
+                    shutil.rmtree(temp_dir)
+                except:
+                    pass
+        else:
+            # Python - just validate syntax
+            context = ToolContext(
+                project_dir=os.path.dirname(__file__),
+                api_key=self.api_key,
+                metadata={'requirement': state.get('requirement', '')}
+            )
+
+            build_tool = BuildTool()
+            build_result = build_tool.execute(
+                context,
+                language="python",
+                max_iterations=1
+            )
+
+            build_output = build_result.message
+            build_errors = build_result.data.get('errors_for_llm', '') if build_result.data and not build_result.success else ''
+            build_success = build_result.success
+
+            print(f"[BUILD AGENT] Python validation {'SUCCESS' if build_success else 'FAILED'}")
+
+        return {
+            **state,
+            "code": code,
+            "build_output": build_output,
+            "build_errors": build_errors,
+            "build_success": build_success,
+            "messages": state["messages"] + [AIMessage(content=f"Build {'successful' if build_success else 'failed'}")]
+        }
+
     def testing_agent(self, state: AgentState) -> AgentState:
         """Testing Agent: Creates comprehensive tests"""
         print("\n[TESTING AGENT: Writing tests...]")
